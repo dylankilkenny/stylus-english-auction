@@ -116,10 +116,14 @@ impl EnglishAuction {
         Ok(self.bids.getter(bidder).get())
     }
 
-    // Initialize program
+    // Add this private helper function before any of the public functions
+    fn is_valid_address(addr: Address) -> bool {
+        addr != Address::default()
+    }
+
     pub fn initialize(&mut self, nft: Address, nft_id: U256, starting_bid: U256) -> Result<(), EnglishAuctionError> {
         // Check if the contract has already been initialized.
-        if self.seller.get() != Address::default() {
+        if Self::is_valid_address(self.seller.get()) {
             // Return an error if the contract has already been initialized.
             return Err(EnglishAuctionError::AlreadyInitialized(AlreadyInitialized{}));
         }
