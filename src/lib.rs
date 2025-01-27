@@ -116,19 +116,10 @@ impl EnglishAuction {
         Ok(self.bids.getter(bidder).get())
     }
 
-    // Add this private helper function before any of the public functions
-    fn is_valid_address(addr: Address) -> bool {
-        addr != Address::default()
-    }
-
-    // Add this helper function
-    fn has_highest_bidder(&self) -> bool {
-        Self::is_valid_address(self.highest_bidder.get())
-    }
-
+    // Initialize program
     pub fn initialize(&mut self, nft: Address, nft_id: U256, starting_bid: U256) -> Result<(), EnglishAuctionError> {
         // Check if the contract has already been initialized.
-        if Self::is_valid_address(self.seller.get()) {
+        if self.seller.get() != Address::default() {
             // Return an error if the contract has already been initialized.
             return Err(EnglishAuctionError::AlreadyInitialized(AlreadyInitialized{}));
         }
@@ -180,18 +171,21 @@ impl EnglishAuction {
         }
     }
 
+    // Add this small helper
+    fn is_time_ended(&self) -> bool {
+        U256::from(block::timestamp()) >= self.end_at.get()
+    }
+
     // The bid method allows bidders to place a bid on the auction.
     #[payable]
     pub fn bid(&mut self) -> Result<(), EnglishAuctionError> {
         // Check if the auction has started.
         if !self.started.get() {
-            // Return an error if the auction has not started.
             return Err(EnglishAuctionError::NotSeller(NotSeller{}));
         }
         
-        // Check if the auction has ended.
-        if U256::from(block::timestamp()) >= self.end_at.get() {
-            // Return an error if the auction has ended.
+        // Check if the auction has ended using our new helper
+        if self.is_time_ended() {
             return Err(EnglishAuctionError::AuctionEnded(AuctionEnded{}));
         }
         
@@ -202,7 +196,7 @@ impl EnglishAuction {
         }
         
         // Refund the previous highest bidder. (But will not transfer back at this call, needs bidders to call withdraw() to get back the fund.
-        if self.has_highest_bidder() {
+        if self.highest_bidder.get() != Address::default() {
             let mut bid = self.bids.setter(self.highest_bidder.get());
             let current_bid = bid.get();
             bid.set(current_bid + self.highest_bid.get());
@@ -257,23 +251,19 @@ impl EnglishAuction {
             return Err(EnglishAuctionError::AuctionEnded(AuctionEnded{}));
         }
         
-        // Get all the values we need first
-        let has_highest_bidder = storage.borrow_mut().has_highest_bidder();
+        // End the auction and transfer the NFT and the highest bid to the winner.
+        storage.borrow_mut().ended.set(true);
         let nft_contract_address = *storage.borrow_mut().nft_address;
         let seller_address = storage.borrow_mut().seller.get();
         let highest_bid = storage.borrow_mut().highest_bid.get();
         let highest_bidder = storage.borrow_mut().highest_bidder.get();
         let nft_id = storage.borrow_mut().nft_id.get();
-
-        // Mark the auction as ended
-        storage.borrow_mut().ended.set(true);
-        
-        // Now create the config and NFT contract
         let config = Call::new_in(storage.borrow_mut());
+        
         let nft = IERC721::new(nft_contract_address);
         
-        // Handle the NFT transfer based on whether there was a highest bidder
-        if has_highest_bidder {
+        // Check if there is highest bidder.
+        if highest_bidder != Address::default() {
             // If there is a highest bidder, transfer the NFT to the highest bidder.
             let _ = nft.safe_transfer_from(config, contract::address(), highest_bidder, nft_id);
             // Transfer the highest bid to the seller.
