@@ -176,6 +176,11 @@ impl EnglishAuction {
         U256::from(block::timestamp()) >= self.end_at.get()
     }
 
+    // Add this helper function
+    fn is_valid_bid(&self, bid_amount: U256) -> bool {
+        bid_amount > self.highest_bid.get()
+    }
+
     // The bid method allows bidders to place a bid on the auction.
     #[payable]
     pub fn bid(&mut self) -> Result<(), EnglishAuctionError> {
@@ -184,14 +189,13 @@ impl EnglishAuction {
             return Err(EnglishAuctionError::NotSeller(NotSeller{}));
         }
         
-        // Check if the auction has ended using our new helper
+        // Check if the auction has ended using our helper
         if self.is_time_ended() {
             return Err(EnglishAuctionError::AuctionEnded(AuctionEnded{}));
         }
         
-        // Check if the bid amount is higher than the current highest bid.
-        if msg::value() <= self.highest_bid.get() {
-            // Return an error if the bid amount is too low.
+        // Check if the bid amount is valid using our new helper
+        if !self.is_valid_bid(msg::value()) {
             return Err(EnglishAuctionError::BidTooLow(BidTooLow{}));
         }
         
