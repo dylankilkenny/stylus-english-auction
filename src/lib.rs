@@ -181,6 +181,15 @@ impl EnglishAuction {
         bid_amount > self.highest_bid.get()
     }
 
+    // Add this helper function
+    fn refund_previous_bidder(&mut self) {
+        if self.highest_bidder.get() != Address::default() {
+            let mut bid = self.bids.setter(self.highest_bidder.get());
+            let current_bid = bid.get();
+            bid.set(current_bid + self.highest_bid.get());
+        }
+    }
+
     // The bid method allows bidders to place a bid on the auction.
     #[payable]
     pub fn bid(&mut self) -> Result<(), EnglishAuctionError> {
@@ -194,17 +203,13 @@ impl EnglishAuction {
             return Err(EnglishAuctionError::AuctionEnded(AuctionEnded{}));
         }
         
-        // Check if the bid amount is valid using our new helper
+        // Check if the bid amount is valid using our helper
         if !self.is_valid_bid(msg::value()) {
             return Err(EnglishAuctionError::BidTooLow(BidTooLow{}));
         }
         
-        // Refund the previous highest bidder. (But will not transfer back at this call, needs bidders to call withdraw() to get back the fund.
-        if self.highest_bidder.get() != Address::default() {
-            let mut bid = self.bids.setter(self.highest_bidder.get());
-            let current_bid = bid.get();
-            bid.set(current_bid + self.highest_bid.get());
-        }
+        // Refund the previous highest bidder using our new helper
+        self.refund_previous_bidder();
         
         // Update the highest bidder and the highest bid.
         self.highest_bidder.set(msg::sender());
