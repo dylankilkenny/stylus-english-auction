@@ -121,6 +121,11 @@ impl EnglishAuction {
         addr != Address::default()
     }
 
+    // Add this helper function
+    fn has_highest_bidder(&self) -> bool {
+        Self::is_valid_address(self.highest_bidder.get())
+    }
+
     pub fn initialize(&mut self, nft: Address, nft_id: U256, starting_bid: U256) -> Result<(), EnglishAuctionError> {
         // Check if the contract has already been initialized.
         if Self::is_valid_address(self.seller.get()) {
@@ -197,7 +202,7 @@ impl EnglishAuction {
         }
         
         // Refund the previous highest bidder. (But will not transfer back at this call, needs bidders to call withdraw() to get back the fund.
-        if self.highest_bidder.get() != Address::default() {
+        if self.has_highest_bidder() {
             let mut bid = self.bids.setter(self.highest_bidder.get());
             let current_bid = bid.get();
             bid.set(current_bid + self.highest_bid.get());
@@ -252,19 +257,23 @@ impl EnglishAuction {
             return Err(EnglishAuctionError::AuctionEnded(AuctionEnded{}));
         }
         
-        // End the auction and transfer the NFT and the highest bid to the winner.
-        storage.borrow_mut().ended.set(true);
+        // Get all the values we need first
+        let has_highest_bidder = storage.borrow_mut().has_highest_bidder();
         let nft_contract_address = *storage.borrow_mut().nft_address;
         let seller_address = storage.borrow_mut().seller.get();
         let highest_bid = storage.borrow_mut().highest_bid.get();
         let highest_bidder = storage.borrow_mut().highest_bidder.get();
         let nft_id = storage.borrow_mut().nft_id.get();
-        let config = Call::new_in(storage.borrow_mut());
+
+        // Mark the auction as ended
+        storage.borrow_mut().ended.set(true);
         
+        // Now create the config and NFT contract
+        let config = Call::new_in(storage.borrow_mut());
         let nft = IERC721::new(nft_contract_address);
         
-        // Check if there is highest bidder.
-        if highest_bidder != Address::default() {
+        // Handle the NFT transfer based on whether there was a highest bidder
+        if has_highest_bidder {
             // If there is a highest bidder, transfer the NFT to the highest bidder.
             let _ = nft.safe_transfer_from(config, contract::address(), highest_bidder, nft_id);
             // Transfer the highest bid to the seller.
