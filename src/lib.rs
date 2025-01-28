@@ -72,6 +72,11 @@ sol_storage! {
 impl EnglishAuction {
     pub const ONE_DAY: u64 = 86400; // 1 day = 24 hours * 60 minutes * 60 seconds = 86400 seconds.
     
+    // Add this internal helper function
+    fn ensure_contract_active(&self) -> bool {
+        self.started.get() && !self.ended.get() && !self.is_time_ended()
+    }
+
     // Get nft address
     pub fn nft(&self) -> Result<Address, EnglishAuctionError> {
         Ok(self.nft_address.get())
