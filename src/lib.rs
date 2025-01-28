@@ -294,4 +294,9 @@ impl EnglishAuction {
         });
         Ok(())
     }
+
+    // Add this helper function to validate addresses
+    fn is_valid_address(&self, addr: Address) -> bool {
+        addr != Address::default() && addr != contract::address()
+    }
 }
